@@ -903,7 +903,9 @@ let myMessage = null;   // isi pesan Rania saat ini (null = belum ada)
 
 const hasConfig = /^https:\/\//i.test(SUPABASE_URL) && !SUPABASE_KEY.includes('[PASTE');
 if (hasConfig && window.supabase) {
-  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { lock: async (name, timeout, fn) => await fn() }
+});
 }
 
 // Ambil id pengguna anonim (dibuat otomatis kalau belum ada)
