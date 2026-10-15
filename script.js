@@ -961,6 +961,10 @@ function openWriting() {
 }
 
 /* ---------- KIRIM / SIMPAN ---------- */
+const withTimeout = (p, label, ms = 12000) => Promise.race([
+  p,
+  new Promise((_, rej) => setTimeout(() => rej(new Error('macet di ' + label)), ms))
+]);
 flSend.addEventListener('click', async () => {
   const text = flText.value.trim();
   if (!text) { flMsg.textContent = 'Tulis sesuatu dulu ya.'; return; }
@@ -970,13 +974,11 @@ flSend.addEventListener('click', async () => {
 
   try {
     if (sb) {
-          const { data: ss } = await sb.auth.getSession();
-    if (!ss.session) return;
-    const uid = ss.session.user.id;
-      const { error } = await sb.from('messages').upsert(
+                const uid = await withTimeout(getUid(), 'login');
+      const { error } = await withTimeout(sb.from('messages').upsert(
         { user_id: uid, content: text, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
-      );
+      ), 'simpan');
       if (error) throw error;
       flTest.textContent = '';
     } else if (DEV_MODE) {
@@ -1025,9 +1027,7 @@ flDelete.addEventListener('click', async () => {
 
   try {
     if (sb) {
-          const { data: ss } = await sb.auth.getSession();
-    if (!ss.session) return;
-    const uid = ss.session.user.id;
+          const uid = await getUid();
       const { error } = await sb.from('messages').delete().eq('user_id', uid);
       if (error) throw error;
     }
@@ -1427,3 +1427,38 @@ addBack('starsNext', 'music', true);  // Bintang -> Musik
 addBack('gameNext', 'stars', true);   // Game    -> Bintang
 addBack('specialNext', 'game');     // Spesial -> Game
 addBack('pastNext', 'special');     // Masa lalu -> Spesial
+
+/* =========================================================
+   LANJUTKAN MUSIK saat kembali dari website lama
+   (untuk kasus halaman tidak dimuat ulang)
+   ========================================================= */
+let musicWasOn = false;
+
+oldLink.addEventListener('click', () => {
+  if (urlOk) musicWasOn = !audio.paused;
+});
+
+function resumeMusicHint() {
+  pastNote.textContent = 'Ketuk layar untuk melanjutkan musik.';
+  document.addEventListener('pointerdown', () => {
+    playSong();
+    pastNote.textContent = '';
+  }, { once: true });
+}
+
+function resumeMusicCheck() {
+  if (!musicWasOn) return;
+  musicWasOn = false;
+  try {
+    localStorage.removeItem('rania-return-to-past');
+    localStorage.removeItem('rania-return-music');
+  } catch (e) { /* abaikan */ }
+  if (audio.paused) audio.play().catch(resumeMusicHint);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) resumeMusicCheck();
+});
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) resumeMusicCheck();
+});
